@@ -77,9 +77,6 @@ class TrashDetector:
         self.labels_path = labels_path
         self.conf_threshold = conf_threshold
         
-        # YOLOv8n input size
-        self.input_size = 640
-        
         # Load labels
         self.labels = self._load_labels()
         logger.info(f"Loaded {len(self.labels)} class labels")
@@ -91,11 +88,18 @@ class TrashDetector:
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
         
-        # Input shape: [1, 640, 640, 3]
+        # Get input shape from model: [1, height, width, 3]
         input_shape = self.input_details[0]['shape']
         logger.info(f"Model input shape: {input_shape}")
         
-        # Output shape: [1, 84, 8400] for YOLOv8n
+        # Extract input size from model (assuming square input)
+        # Input shape format: [batch, height, width, channels]
+        self.input_size = input_shape[1]  # height (should equal width for square inputs)
+        logger.info(f"Using input size: {self.input_size}x{self.input_size}")
+        
+        # Output shape: [1, num_outputs, num_anchors]
+        # num_outputs = 4 (bbox) + num_classes
+        # num_anchors = number of detection points
         output_shape = self.output_details[0]['shape']
         logger.info(f"Model output shape: {output_shape}")
         
@@ -154,9 +158,9 @@ class TrashDetector:
             image: RGB numpy array (H, W, 3), values in [0, 255]
         
         Returns:
-            Preprocessed image: (1, 640, 640, 3), float32, values in [0.0, 1.0]
+            Preprocessed image: (1, input_size, input_size, 3), float32, values in [0.0, 1.0]
         """
-        # Resize to model input size (640x640)
+        # Resize to model input size (detected from model)
         resized = cv2.resize(
             image, 
             (self.input_size, self.input_size), 
@@ -167,7 +171,7 @@ class TrashDetector:
         # YOLOv8 float32 typically expects [0, 255] -> [0.0, 1.0]
         normalized = resized.astype(np.float32) / 255.0
         
-        # Add batch dimension: (1, 640, 640, 3)
+        # Add batch dimension: (1, input_size, input_size, 3)
         batched = np.expand_dims(normalized, axis=0)
         
         return batched
@@ -176,20 +180,19 @@ class TrashDetector:
         """
         Post-process YOLOv8 output tensor.
         
-        YOLOv8 output shape: [1, 84, 8400]
-        - 84 = 4 (bbox coords) + 80 (COCO classes) OR 4 + 3 (our 3 classes)
-        - Actually, for custom models: 4 + num_classes
-        - 8400 = number of anchors (80*80 + 40*40 + 20*20 = 8400 for YOLOv8n)
+        YOLOv8 output shape: [1, num_outputs, num_anchors]
+        - num_outputs = 4 (bbox coords) + num_classes (e.g., 7 = 4 + 3 for 3 classes)
+        - num_anchors = number of detection points (varies by model, e.g., 4725 or 8400)
         
         Args:
-            output: Raw model output [1, 84, 8400]
+            output: Raw model output [1, num_outputs, num_anchors]
             original_shape: (height, width) of original image
         
         Returns:
             List of detections, each as dict with keys:
                 'class_id', 'class_name', 'confidence', 'bbox' (x, y, w, h)
         """
-        # Remove batch dimension: [84, 8400]
+        # Remove batch dimension: [num_outputs, num_anchors]
         output = output[0]
         
         # For YOLOv8, structure is:
@@ -197,10 +200,11 @@ class TrashDetector:
         # output[4:, :] = class scores (logits)
         
         # Extract bbox coordinates (cx, cy, w, h) - normalized
-        bboxes_cxcywh = output[0:4, :].T  # Shape: [8400, 4]
+        num_anchors = output.shape[1]
+        bboxes_cxcywh = output[0:4, :].T  # Shape: [num_anchors, 4]
         
         # Extract class scores
-        class_scores = output[4:, :].T  # Shape: [8400, num_classes]
+        class_scores = output[4:, :].T  # Shape: [num_anchors, num_classes]
         
         # If model has more classes than our labels, use only the first N classes
         # (where N = number of labels)
@@ -215,8 +219,8 @@ class TrashDetector:
         probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
         
         # Get max confidence and class for each anchor
-        max_conf = np.max(probs, axis=1)  # [8400]
-        class_ids = np.argmax(probs, axis=1)  # [8400]
+        max_conf = np.max(probs, axis=1)  # [num_anchors]
+        class_ids = np.argmax(probs, axis=1)  # [num_anchors]
         
         # Filter by confidence threshold
         mask = max_conf >= self.conf_threshold
