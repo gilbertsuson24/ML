@@ -378,29 +378,44 @@ class TrashDetector:
 
 
 def main():
-    """Main function for standalone execution."""
+    """Main function for standalone execution with continuous detection."""
+    import time
+    detector = None
+    
     try:
         detector = TrashDetector()
+        detector._initialize_camera()
         
-        # Capture and detect
-        detections = detector.detect()
+        logger.info("Starting continuous detection. Press Ctrl+C to stop.")
+        frame_count = 0
         
-        if detections:
-            for det in detections:
-                bbox = det['bbox']
-                print(f"Detection: {det['class_name']}, "
-                      f"confidence: {det['confidence']:.2f}, "
-                      f"bbox: [{int(bbox[0])}, {int(bbox[1])}, "
-                      f"{int(bbox[2])}, {int(bbox[3])}]")
-        else:
-            print("No trash detected.")
+        while True:
+            # Capture and detect
+            detections = detector.detect()
+            
+            frame_count += 1
+            
+            if detections:
+                print(f"\n[Frame {frame_count}] Detections found:")
+                for det in detections:
+                    bbox = det['bbox']
+                    print(f"  - {det['class_name']}: {det['confidence']:.2f} "
+                          f"at [{int(bbox[0])}, {int(bbox[1])}, "
+                          f"{int(bbox[2])}, {int(bbox[3])}]")
+            else:
+                print(f"[Frame {frame_count}] No trash detected.", end='\r')
+            
+            # Small delay to avoid overwhelming the output
+            time.sleep(0.1)
         
-        # Cleanup
-        detector.cleanup()
-        
+    except KeyboardInterrupt:
+        logger.info("\nStopped by user.")
     except Exception as e:
         logger.error(f"Error during detection: {e}", exc_info=True)
         raise
+    finally:
+        if detector is not None:
+            detector.cleanup()
 
 
 if __name__ == "__main__":
