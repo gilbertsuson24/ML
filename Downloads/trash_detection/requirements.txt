@@ -1,13 +1,14 @@
 # Trash Detection Project Requirements
 # Install with: pip install -r requirements.txt
 
-# TensorFlow Lite runtime (preferred for Raspberry Pi - lighter weight)
-# For Raspberry Pi, you may need to install tflite-runtime from a wheel file
-# If tflite-runtime is not available, use tensorflow instead
-tflite-runtime>=2.13.0
+# TensorFlow (works on Raspberry Pi - includes TensorFlow Lite)
+# Note: For Raspberry Pi, you may need to install a specific version compatible with your system
+# If tensorflow doesn't work, try: pip install tensorflow-aarch64 (for ARM64) or tensorflow-lite-aarch64
+tensorflow>=2.13.0
 
-# Alternative: Full TensorFlow (uncomment if tflite-runtime is not available)
-# tensorflow>=2.13.0
+# Alternative: TensorFlow Lite runtime (lighter weight, but may require wheel file on Raspberry Pi)
+# Uncomment below and comment out tensorflow above if you have tflite-runtime wheel file
+# tflite-runtime>=2.13.0
 
 # Camera interface for Raspberry Pi
 picamera2>=0.3.12

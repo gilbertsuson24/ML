@@ -135,8 +135,7 @@ class TrashDetector:
         # Configure camera for RGB capture
         # Use a reasonable resolution (can be adjusted based on needs)
         camera_config = self.camera.create_preview_configuration(
-            main={"size": (1640, 1232)},  # Common OV5647 resolution
-            format="RGB888"
+            main={"size": (1640, 1232), "format": "RGB888"}  # Common OV5647 resolution
         )
         self.camera.configure(camera_config)
         self.camera.start()
