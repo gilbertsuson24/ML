@@ -38,8 +38,9 @@ ENV/
 Thumbs.db
 *.log
 
-# Model files (large binary files)
+# Model files (large binary files) - but allow model_float32.tflite
 *.tflite
+!trash_detection/model/model_float32.tflite
 *.h5
 *.pb
 *.onnx
